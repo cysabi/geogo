@@ -11,12 +11,23 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["location"],
-        "NSLocationWhenInUseUsageDescription": "Use background location"
-      }
+        "UIBackgroundModes": [
+          "location",
+          "location"
+        ],
+        "NSLocationWhenInUseUsageDescription": "Use background location",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Use location",
+        "NSLocationUsageDescription": "location usage!"
+      },
+      "bundleIdentifier": "com.aeraquena.cityblockgo"
     },
     "android": {
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_BACKGROUND_LOCATION"],
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -24,7 +35,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.aeraquena.cityblockgo"
     },
     "web": {
       "output": "static",

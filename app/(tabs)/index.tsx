@@ -14,14 +14,15 @@ export default function HomeScreen() {
 
   return (
     <View>
+      <Text>Hellooo</Text>
       <MapView
         style={{
           width: "100%",
           height: "100%",
         }}
         initialRegion={{
-          latitude,
-          longitude,
+          latitude: 40.7128,
+          longitude: 74.006,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         }}
