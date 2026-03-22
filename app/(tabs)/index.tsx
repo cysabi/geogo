@@ -1,22 +1,27 @@
 import { useBackgroundLocation } from "@/hooks/use-location";
-import { MapView } from "@maplibre/maplibre-react-native";
+import { Camera, MapView } from "@maplibre/maplibre-react-native";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text } from "react-native";
 
 export default function HomeScreen() {
   const { location, status, error } = useBackgroundLocation();
 
+  const mapRef: any = useRef(null);
+
+  const [coords, setCoords] = useState<[number, number]>([-74.006, 40.7128]);
+
+  useEffect(() => {
+    if (location) {
+      setCoords([location.coords.longitude, location.coords.latitude]);
+    }
+  }, [location]);
+
   if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
   if (status === "error") return <Text>{error}</Text>;
 
-  const { latitude, longitude } = location
-    ? location.coords
-    : { latitude: 40.7128, longitude: 74.006 };
-
   return (
-    <MapView
-      style={{
-        flex: 1,
-      }}
-    />
+    <MapView ref={mapRef} style={{ flex: 1 }}>
+      <Camera centerCoordinate={coords} zoomLevel={13} />
+    </MapView>
   );
 }
