@@ -1,98 +1,83 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useBackgroundLocation } from "@/hooks/use-location";
+import {
+  Camera,
+  LineLayer,
+  MapView,
+  ShapeSource,
+  UserLocation,
+} from "@maplibre/maplibre-react-native";
+import type GeoJSON from "geojson";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Text } from "react-native";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const { location, status, error } = useBackgroundLocation();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const mapRef: any = useRef(null);
+
+  const [coords, setCoords] = useState<[number, number]>([
+    -73.985056, 40.691327,
+  ]);
+
+  const [points, setPoints] = useState<[number, number][]>([]);
+
+  // Call this every ~10s with the new GPS coordinate
+  const addPoint = (longitude: number, latitude: number) => {
+    setPoints((prev) => [...prev, [longitude, latitude]]);
+  };
+
+  // Manually add points for now ...
+  // TODO: Remove to replace with user location
+  useEffect(() => {
+    addPoint(-73.985056, 40.691327);
+    addPoint(-73.985353, 40.690668);
+    addPoint(-73.98636, 40.691084);
+  }, []);
+
+  // Build a GeoJSON LineString from the collected points
+  const routeGeoJSON: GeoJSON.Feature<GeoJSON.LineString> = {
+    type: "Feature", // now inferred as literal 'Feature', not string
+    properties: {},
+    geometry: {
+      type: "LineString", // same here
+      coordinates: points,
+    },
+  };
+
+  useEffect(() => {
+    if (location) {
+      setCoords([location.coords.longitude, location.coords.latitude]);
+    }
+  }, [location]);
+
+  if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
+  if (status === "error") return <Text>{error}</Text>;
+
+  return (
+    <MapView
+      ref={mapRef}
+      style={{ flex: 1 }}
+      mapStyle="https://api.maptiler.com/maps/streets-v2/style.json?key=ZkJOL4BGmS6lWcFXLlfG"
+    >
+      <Camera
+        centerCoordinate={coords}
+        zoomLevel={17} /* followUserLocation */
+      />
+      <UserLocation />
+      {points.length >= 2 && (
+        <ShapeSource id="route" shape={routeGeoJSON}>
+          <LineLayer
+            id="routeLine"
+            style={{
+              lineColor: "#4A90E2",
+              lineWidth: 4,
+              lineOpacity: 0.8,
+              lineCap: "round",
+              lineJoin: "round",
+            }}
+          />
+        </ShapeSource>
+      )}
+    </MapView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
