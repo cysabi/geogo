@@ -16,19 +16,17 @@ import (
 // LineWidth is the physical width of a drawn line in meters.
 // Two lines "intersect" if their centerlines are within this distance,
 // meaning their 5m-wide buffers overlap.
-const LineWidth = 10.0
+const LineWidth = 20.0
 
 // NearbyRadius is the search radius (meters) for reconnecting to an existing point.
-const NearbyRadius = 20.0
-
-const earthRadiusMeters = 6_371_000.0
+const NearbyRadius = 500.0
 
 // ---------------------------------------------------------------------------
 // Conversion helpers
 // ---------------------------------------------------------------------------
 
 func metersToAngle(m float64) s1.Angle {
-	return s1.Angle(m / earthRadiusMeters)
+	return s1.Angle(m / 6_371_000.0)
 }
 
 func metersToChordAngle(m float64) s1.ChordAngle {
@@ -174,7 +172,7 @@ func (gs *GameState) pointInAnyClaimed(pt s2.Point) bool {
 // NearbyResult holds the outcome of a proximity search against a player's lines.
 type NearbyResult struct {
 	LineIdx   int       // which PlayerLine was closest
-	EdgeIdx   int       // which edge on that line
+	EdgeIdx   int       // which edge on that line (-1 if snapped to a lone vertex)
 	SnapPoint s2.Point  // the actual closest point on the edge
 	Timestamp time.Time // the later timestamp of the edge's two endpoints
 }
@@ -190,7 +188,27 @@ func findNearbyPoint(player *Player, pt s2.Point, radiusMeters float64) (result 
 	var bestTime time.Time
 
 	for li, line := range player.Lines {
-		if line.Polyline == nil || line.Polyline.NumEdges() == 0 {
+		if line.Polyline == nil {
+			continue
+		}
+
+		// --- Handle single-vertex polylines (no edges to query). ---
+		if len(*line.Polyline) == 1 {
+			d := s2.ChordAngleBetweenPoints(pt, (*line.Polyline)[0])
+			if d <= limit && (!found || line.Points[0].Timestamp.After(bestTime)) {
+				result = NearbyResult{
+					LineIdx:   li,
+					EdgeIdx:   -1, // sentinel: lone vertex, not an edge
+					SnapPoint: (*line.Polyline)[0],
+					Timestamp: line.Points[0].Timestamp,
+				}
+				found = true
+				bestTime = line.Points[0].Timestamp
+			}
+			continue
+		}
+
+		if line.Polyline.NumEdges() == 0 {
 			continue
 		}
 
@@ -368,13 +386,12 @@ func findSelfIntersection(pl *s2.Polyline, oldEdgeCount int) (
 
 	for ni := oldEdgeCount; ni < pl.NumEdges(); ni++ {
 		ne := pl.Edge(ni)
-		// Stop before the edge adjacent to the join point to avoid
-		// false positives from shared vertices.
-		maxOld := oldEdgeCount - 1
-		if ni == oldEdgeCount {
-			maxOld = oldEdgeCount - 2 // skip the shared-vertex neighbour
-		}
-		for oi := 0; oi < maxOld && oi < oldEdgeCount; oi++ {
+		for oi := 0; oi < oldEdgeCount; oi++ {
+			// Skip edges that share a vertex (are adjacent) to avoid
+			// false positives.
+			if oi == ni-1 || oi == ni+1 || oi == ni {
+				continue
+			}
 			oe := pl.Edge(oi)
 			ca, cb := s2.EdgePairClosestPoints(oe.V0, oe.V1, ne.V0, ne.V1)
 			dist := s2.ChordAngleBetweenPoints(ca, cb)
