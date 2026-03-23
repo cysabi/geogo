@@ -12,7 +12,7 @@ import { ActivityIndicator, Text } from "react-native";
 
 export default function HomeScreen() {
   const SERVER_URL = "http://10.100.1.50:8080";
-  const userId = "claire"; // TODO: Determine based on device
+  const userId = "alice"; // TODO: Determine based on device
 
   const { location, status, error } = useBackgroundLocation();
 
@@ -52,41 +52,40 @@ export default function HomeScreen() {
 
   async function pingLocation(lat: number, lng: number) {
     try {
-      const response = await fetch(
+      const url =
         SERVER_URL +
-          "/ping&lat=" +
-          lat +
-          "&lng=" +
-          lng +
-          "&player_id=" +
-          userId,
-        {
-          method: "POST", // Specify the method
-          headers: {
-            "Content-Type": "application/json", // Inform the server about the body format
-          },
+        "/ping?lat=" +
+        lat +
+        "&lng=" +
+        lng +
+        "&player_id=" +
+        userId;
+
+      const response = await fetch(url, {
+        method: "POST", // Specify the method
+        headers: {
+          "Content-Type": "application/json", // Inform the server about the body format
         },
-      );
-      const json = await response.json();
-      console.log("-- ping location response --");
-      console.log(json);
+      });
+      const json = await response.text();
     } catch (error) {
       console.error("Error fetching data:", error);
     }
   }
 
   useEffect(() => {
+    console.log("-- update location " + new Date().toLocaleTimeString() + "--");
     if (location) {
       setCoords([location.coords.longitude, location.coords.latitude]);
       addPoint(location.coords.longitude, location.coords.latitude);
 
       // Send to server - longitude and latitude
-      //pingLocation(location.coords.latitude, location.coords.longitude);
+      // TODO: Waiting for JSON response from pingLocation
+      pingLocation(location.coords.latitude, location.coords.longitude);
       fetchState();
     }
   }, [location]);
 
-  console.log("--- MAP STATE ---");
   console.log(mapState);
 
   if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
