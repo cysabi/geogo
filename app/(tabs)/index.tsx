@@ -15,10 +15,7 @@ export default function HomeScreen() {
 
   const mapRef: any = useRef(null);
 
-  const [coords, setCoords] = useState<[number, number]>([
-    -73.985056,
-    40.691327, // Recurse Center
-  ]);
+  const [coords, setCoords] = useState<[number?, number?]>([]);
 
   const [points, setPoints] = useState<[number, number][]>([]);
 
@@ -42,7 +39,7 @@ export default function HomeScreen() {
       setCoords([location.coords.longitude, location.coords.latitude]);
       addPoint(location.coords.longitude, location.coords.latitude);
     }
-    // send to server - longitude and latitude
+    // TODO: send to server - longitude and latitude
   }, [location]);
 
   if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
@@ -57,8 +54,9 @@ export default function HomeScreen() {
       mapStyle="https://api.maptiler.com/maps/streets-v2/style.json?key=ZkJOL4BGmS6lWcFXLlfG"
     >
       <Camera
-        centerCoordinate={coords}
-        zoomLevel={17} /* followUserLocation */
+        centerCoordinate={[coords[0] ?? 0, coords[1] ?? 0]}
+        zoomLevel={17}
+        followUserLocation
       />
       <UserLocation />
       {points.length >= 2 && (
