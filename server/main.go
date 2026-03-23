@@ -209,6 +209,11 @@ type osrmResponse struct {
 }
 
 func fetchRoute(from, to s2.LatLng) ([]s2.Point, error) {
+	pts := make([]s2.Point, 2)
+	pts = append(pts, s2.PointFromLatLng(from))
+	pts = append(pts, s2.PointFromLatLng(to))
+	return pts, nil
+
 	url := fmt.Sprintf(
 		"https://router.project-osrm.org/route/v1/foot/%f,%f;%f,%f?overview=full&geometries=geojson",
 		from.Lng.Degrees(), from.Lat.Degrees(),
