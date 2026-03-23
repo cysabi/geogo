@@ -53,24 +53,22 @@ export default function HomeScreen() {
 
   async function pingLocation(lat: number, lng: number) {
     try {
-      const response = await fetch(
+      const url =
         SERVER_URL +
-          "/ping&lat=" +
-          lat +
-          "&lng=" +
-          lng +
-          "&player_id=" +
-          userId,
-        {
-          method: "POST", // Specify the method
-          headers: {
-            "Content-Type": "application/json", // Inform the server about the body format
-          },
+        "/ping?lat=" +
+        lat +
+        "&lng=" +
+        lng +
+        "&player_id=" +
+        userId;
+
+      const response = await fetch(url, {
+        method: "POST", // Specify the method
+        headers: {
+          "Content-Type": "application/json", // Inform the server about the body format
         },
-      );
-      const json = await response.json();
-      console.log("-- ping location response --");
-      console.log(json);
+      });
+      const json = await response.text();
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -89,7 +87,6 @@ export default function HomeScreen() {
     }
   }, [location]);
 
-  console.log("--- MAP STATE ---");
   console.log(mapState);
 
   if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
