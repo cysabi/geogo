@@ -45,6 +45,7 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
+    console.log("LOCATION CHANGED");
     if (location) {
       setCoords([location.coords.longitude, location.coords.latitude]);
     }
@@ -52,6 +53,8 @@ export default function HomeScreen() {
 
   if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
   if (status === "error") return <Text>{error}</Text>;
+
+  console.log(coords[0], coords[1]);
 
   return (
     <MapView
@@ -78,6 +81,22 @@ export default function HomeScreen() {
           />
         </ShapeSource>
       )}
+      <Text
+        style={{
+          position: "absolute",
+          top: 50,
+          left: 50,
+        }}
+      >
+        {coords[0]}, {coords[1]}
+      </Text>
     </MapView>
   );
 }
+
+/*
+
+      <Text>
+        {coords[0]}, {coords[1]}
+      </Text>
+      */

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
+import { useEffect, useRef, useState } from "react";
 
 const TASK_NAME = "bg-location";
 
@@ -16,8 +16,8 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
 
 export function useBackgroundLocation(
   opts: Location.LocationTaskOptions = {
-    accuracy: Location.Accuracy.High,
-    distanceInterval: 10,
+    accuracy: Location.Accuracy.Highest,
+    distanceInterval: 1, //Receive updates only when the location has changed by at least this distance in meters
     foregroundService: {
       notificationTitle: "Tracking location",
       notificationBody: "Running in background",
