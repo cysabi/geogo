@@ -313,7 +313,20 @@ func joinViaRoute(line *PlayerLine, dest s2.Point, ts time.Time) error {
 		return fmt.Errorf("line has no points")
 	}
 
-	line.Points = append(line.Points, TimestampedPoint{Point: dest, Timestamp: ts})
+	lastPt := line.Points[len(line.Points)-1]
+	from := s2.LatLngFromPoint(lastPt.Point)
+	to := s2.LatLngFromPoint(dest)
+
+	routePts, err := fetchRoute(from, to)
+	if err != nil {
+		return err
+	}
+
+	// fetchRoute skips the `from` point and includes `dest`,
+	// so append all returned points.
+	for _, rp := range routePts {
+		line.Points = append(line.Points, TimestampedPoint{Point: rp, Timestamp: ts})
+	}
 	line.rebuildPolyline()
 	return nil
 }
@@ -378,9 +391,10 @@ func createPolygonFromSelfIntersection(pl *s2.Polyline, crossPt s2.Point, oldEdg
 // ---------------------------------------------------------------------------
 
 // s2PolyToGeom converts an S2 Polygon into a polygol Geom (MultiPolygon coords).
-// Each S2 Loop becomes one ring. polygol uses [lng, lat] ordering (x, y).
+// Each S2 Loop becomes its own single-ring polygon in the MultiPolygon,
+// avoiding ambiguity between outer shells and holes.
 func s2PolyToGeom(p *s2.Polygon) polygol.Geom {
-	poly := make([][][]float64, p.NumLoops())
+	var geom polygol.Geom
 	for i := 0; i < p.NumLoops(); i++ {
 		loop := p.Loop(i)
 		ring := make([][]float64, loop.NumVertices()+1) // +1 to close the ring
@@ -388,16 +402,16 @@ func s2PolyToGeom(p *s2.Polygon) polygol.Geom {
 			ll := s2.LatLngFromPoint(loop.Vertex(j))
 			ring[j] = []float64{ll.Lng.Degrees(), ll.Lat.Degrees()}
 		}
-		// Close the ring by repeating the first vertex
+		// Close the ring by repeating the first vertex.
 		ll := s2.LatLngFromPoint(loop.Vertex(0))
 		ring[loop.NumVertices()] = []float64{ll.Lng.Degrees(), ll.Lat.Degrees()}
-		poly[i] = ring
+		geom = append(geom, [][][]float64{ring})
 	}
-	return polygol.Geom{poly}
+	return geom
 }
 
 // geomToS2Poly converts a polygol Geom (MultiPolygon) back to an *s2.Polygon.
-// Each polygon in the MultiPolygon becomes loops in a single S2 Polygon.
+// Every ring across all polygons is collected into a flat list of S2 loops.
 func geomToS2Poly(g polygol.Geom) *s2.Polygon {
 	var loops []*s2.Loop
 	for _, poly := range g {
@@ -406,7 +420,7 @@ func geomToS2Poly(g polygol.Geom) *s2.Polygon {
 			if n < 4 { // need at least 3 unique vertices + closing vertex
 				continue
 			}
-			// Drop the closing duplicate vertex
+			// Drop the closing duplicate vertex.
 			pts := make([]s2.Point, n-1)
 			for i := 0; i < n-1; i++ {
 				ll := s2.LatLngFromDegrees(ring[i][1], ring[i][0]) // lat, lng
@@ -583,6 +597,8 @@ func destroyConnectedLines(player *Player, seedIndices []int) {
 // ---------------------------------------------------------------------------
 
 func (gs *GameState) ReceivePing(playerID string, lat, lng float64, ts time.Time) error {
+	pt := s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng))
+
 	gs.mu.Lock()
 	defer gs.mu.Unlock()
 
@@ -590,8 +606,6 @@ func (gs *GameState) ReceivePing(playerID string, lat, lng float64, ts time.Time
 	if !ok {
 		return fmt.Errorf("unknown player %s", playerID)
 	}
-
-	pt := s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng))
 
 	// ---- 1. If position is already inside a claimed shape, ignore. --------
 	if gs.pointInAnyClaimed(pt) {
