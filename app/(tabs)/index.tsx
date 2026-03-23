@@ -12,6 +12,7 @@ import { ActivityIndicator, Text } from "react-native";
 
 export default function HomeScreen() {
   const SERVER_URL = "http://10.100.1.50:8080";
+  const userId = "claire"; // TODO: Determine based on device
 
   const { location, status, error } = useBackgroundLocation();
 
@@ -20,6 +21,8 @@ export default function HomeScreen() {
   const [coords, setCoords] = useState<[number?, number?]>([]);
 
   const [points, setPoints] = useState<[number, number][]>([]);
+
+  const [mapState, setMapState] = useState({});
 
   // Call this every ~10s with the new GPS coordinate
   const addPoint = (longitude: number, latitude: number) => {
@@ -41,6 +44,32 @@ export default function HomeScreen() {
       const response = await fetch(SERVER_URL + "/state");
       const json = await response.json();
       console.log(json);
+      setMapState(json);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
+  }
+
+  async function pingLocation(lat: number, lng: number) {
+    try {
+      const response = await fetch(
+        SERVER_URL +
+          "/ping&lat=" +
+          lat +
+          "&lng=" +
+          lng +
+          "&player_id=" +
+          userId,
+        {
+          method: "POST", // Specify the method
+          headers: {
+            "Content-Type": "application/json", // Inform the server about the body format
+          },
+        },
+      );
+      const json = await response.json();
+      console.log("-- ping location response --");
+      console.log(json);
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -52,11 +81,13 @@ export default function HomeScreen() {
       addPoint(location.coords.longitude, location.coords.latitude);
 
       // Send to server - longitude and latitude
-      const mapState = fetchState();
-      console.log("--- MAP STATE ---");
-      console.log(mapState);
+      //pingLocation(location.coords.latitude, location.coords.longitude);
+      fetchState();
     }
   }, [location]);
+
+  console.log("--- MAP STATE ---");
+  console.log(mapState);
 
   if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
   if (status === "error") return <Text>{error}</Text>;
