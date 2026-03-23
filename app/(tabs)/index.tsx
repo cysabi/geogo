@@ -16,7 +16,8 @@ export default function HomeScreen() {
   const mapRef: any = useRef(null);
 
   const [coords, setCoords] = useState<[number, number]>([
-    -73.985056, 40.691327,
+    -73.985056,
+    40.691327, // Recurse Center
   ]);
 
   const [points, setPoints] = useState<[number, number][]>([]);
@@ -25,14 +26,6 @@ export default function HomeScreen() {
   const addPoint = (longitude: number, latitude: number) => {
     setPoints((prev) => [...prev, [longitude, latitude]]);
   };
-
-  // Manually add points for now ...
-  // TODO: Remove to replace with user location
-  useEffect(() => {
-    addPoint(-73.985056, 40.691327);
-    addPoint(-73.985353, 40.690668);
-    addPoint(-73.98636, 40.691084);
-  }, []);
 
   // Build a GeoJSON LineString from the collected points
   const routeGeoJSON: GeoJSON.Feature<GeoJSON.LineString> = {
@@ -45,10 +38,11 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    console.log("LOCATION CHANGED");
     if (location) {
       setCoords([location.coords.longitude, location.coords.latitude]);
+      addPoint(location.coords.longitude, location.coords.latitude);
     }
+    // send to server - longitude and latitude
   }, [location]);
 
   if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
@@ -93,10 +87,3 @@ export default function HomeScreen() {
     </MapView>
   );
 }
-
-/*
-
-      <Text>
-        {coords[0]}, {coords[1]}
-      </Text>
-      */

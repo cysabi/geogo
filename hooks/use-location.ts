@@ -17,7 +17,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
 export function useBackgroundLocation(
   opts: Location.LocationTaskOptions = {
     accuracy: Location.Accuracy.Highest,
-    distanceInterval: 1, //Receive updates only when the location has changed by at least this distance in meters
+    distanceInterval: 1, // Receive updates only when the location has changed by at least this distance in meters
     foregroundService: {
       notificationTitle: "Tracking location",
       notificationBody: "Running in background",
