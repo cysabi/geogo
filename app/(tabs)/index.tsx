@@ -1,7 +1,6 @@
 import { useBackgroundLocation } from "@/hooks/use-location";
 import {
   Camera,
-  FillLayer,
   LineLayer,
   MapView,
   ShapeSource,
@@ -12,6 +11,8 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text } from "react-native";
 
 export default function HomeScreen() {
+  const SERVER_URL = "http://10.100.1.50:8080";
+
   const { location, status, error } = useBackgroundLocation();
 
   const mapRef: any = useRef(null);
@@ -35,12 +36,26 @@ export default function HomeScreen() {
     },
   };
 
+  async function fetchState() {
+    try {
+      const response = await fetch(SERVER_URL + "/state");
+      const json = await response.json();
+      console.log(json);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
+  }
+
   useEffect(() => {
     if (location) {
       setCoords([location.coords.longitude, location.coords.latitude]);
       addPoint(location.coords.longitude, location.coords.latitude);
+
+      // Send to server - longitude and latitude
+      const mapState = fetchState();
+      console.log("--- MAP STATE ---");
+      console.log(mapState);
     }
-    // TODO: send to server - longitude and latitude
   }, [location]);
 
   if (status === "starting") return <ActivityIndicator style={{ flex: 1 }} />;
@@ -72,13 +87,6 @@ export default function HomeScreen() {
               lineJoin: "round",
             }}
           />
-          <FillLayer
-            id="routeShape"
-            style={{
-              fillColor: "#DA3E15",
-              fillOpacity: 0.5,
-            }}
-          />
         </ShapeSource>
       )}
       <Text
@@ -93,3 +101,16 @@ export default function HomeScreen() {
     </MapView>
   );
 }
+
+/*
+// TODO: Only fill in claimed shapes
+
+<FillLayer
+  id="routeShape"
+  style={{
+    fillColor: "#DA3E15",
+    fillOpacity: 0.5,
+  }}
+/>
+
+*/
