@@ -5,6 +5,7 @@ have a constant variable for the width of the line as 10 meters. "intersecting" 
 - colors: str[]
 - players: Players[]
   - id:
+  - name:
   - team:
   - city:
   - lines: an array of polylines
@@ -14,7 +15,13 @@ SendState just sends all of it to the client on get
 
 ## endpoints
 - /ping: clients send their lat long to the server, which automatically applies that to the state, calls RecieveLat
-- /state: clients recieve all of the game state SendState
+- /state?id=: if your player id exists, end all of the game state SendState, otherwise send null
+- /join: send player id, name, team, city, the backend adds it to the state
+
+func StateEndpoint()
+  - query parameter for the player id
+  - send all of the state
+  - 
 
 func PingEndpoint()
   - query parameter for the player id
