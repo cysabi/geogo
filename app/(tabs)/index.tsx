@@ -76,7 +76,7 @@ export default function HomeScreen() {
             id="routeShape"
             style={{
               fillColor: "#DA3E15",
-              fillOpacity: 0.5,
+              fillOpacity: 0.0,
             }}
           />
         </ShapeSource>
