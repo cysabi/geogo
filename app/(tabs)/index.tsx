@@ -12,7 +12,9 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text } from "react-native";
 
 export default function HomeScreen() {
-  const SERVER_URL = "http://10.100.1.50:8080";
+  //const SERVER_URL = "http://10.100.1.50:8080"; // RC
+  const SERVER_URL = "http://192.168.1.28:8080"; // RC
+
   const userId = "alice"; // TODO: Determine based on device
 
   const { location, status, error } = useBackgroundLocation();
@@ -44,7 +46,7 @@ export default function HomeScreen() {
     try {
       const response = await fetch(SERVER_URL + "/state");
       const json = await response.json();
-      console.log(json);
+      console.log(JSON.stringify(json));
       setMapState(json);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -68,7 +70,8 @@ export default function HomeScreen() {
           "Content-Type": "application/json", // Inform the server about the body format
         },
       });
-      const json = await response.text();
+      const json = await response.json();
+      console.log(json);
     } catch (error) {
       console.error("Error fetching data:", error);
     }
