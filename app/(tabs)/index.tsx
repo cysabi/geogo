@@ -1,6 +1,7 @@
 import { useBackgroundLocation } from "@/hooks/use-location";
 import {
   Camera,
+  FillLayer,
   LineLayer,
   MapView,
   ShapeSource,
@@ -29,6 +30,33 @@ type ExtractedData = {
   loops: [number, number][][]; // array of loops, each loop is array of [lng, lat]
 };
 
+const toCoord = (p: Point): [number, number] => [p.lng, p.lat];
+
+const extractLinesAndLoops = (data: GameState): ExtractedData => {
+  const lines: [number, number][][] = [];
+  const loops: [number, number][][] = [];
+
+  for (const player of data.players) {
+    // Extract lines
+    if (player.lines) {
+      for (const line of player.lines) {
+        lines.push(line.points.map(toCoord));
+      }
+    }
+
+    // Extract loops
+    if (player.claimed) {
+      for (const claim of player.claimed) {
+        for (const loop of claim.loops) {
+          loops.push(loop.map(toCoord));
+        }
+      }
+    }
+  }
+
+  return { lines: lines, loops: loops };
+};
+
 export default function HomeScreen() {
   //const SERVER_URL = "http://10.100.1.50:8080"; // RC
   const SERVER_URL = "http://192.168.1.28:8080"; // RC
@@ -41,19 +69,22 @@ export default function HomeScreen() {
 
   const [coords, setCoords] = useState<[number?, number?]>([]);
 
+  // points for lines
   const [points, setPoints] = useState<[number, number][]>([]);
 
-  const [allPoints, setAllPoints] = useState<[number, number][]>([]);
+  // claimed shapes
+  const [claimedShapes, setClaimedShapes] = useState<[number, number][]>([]);
 
   const [mapState, setMapState] = useState({});
 
   // Call this every ~10s with the new GPS coordinate
+  // For use live updating on client
   const addPoint = (longitude: number, latitude: number) => {
     setPoints((prev) => [...prev, [longitude, latitude]]);
   };
 
-  // Build a GeoJSON LineString from the collected points
-  const routeGeoJSON: GeoJSON.Feature<GeoJSON.LineString> = {
+  // Build a GeoJSON LineString from the collected lines
+  const linesGeoJSON: GeoJSON.Feature<GeoJSON.LineString> = {
     type: "Feature", // now inferred as literal 'Feature', not string
     properties: {},
     geometry: {
@@ -62,31 +93,14 @@ export default function HomeScreen() {
     },
   };
 
-  const toCoord = (p: Point): [number, number] => [p.lng, p.lat];
-
-  const extractLinesAndLoops = (data: GameState): ExtractedData => {
-    const lines: [number, number][][] = [];
-    const loops: [number, number][][] = [];
-
-    for (const player of data.players) {
-      // Extract lines
-      if (player.lines) {
-        for (const line of player.lines) {
-          lines.push(line.points.map(toCoord));
-        }
-      }
-
-      // Extract loops
-      if (player.claimed) {
-        for (const claim of player.claimed) {
-          for (const loop of claim.loops) {
-            loops.push(loop.map(toCoord));
-          }
-        }
-      }
-    }
-
-    return { lines: lines, loops: loops };
+  // Build a GeoJSON LineString from the collected claimed shapes
+  const shapesGeoJSON: GeoJSON.Feature<GeoJSON.LineString> = {
+    type: "Feature", // now inferred as literal 'Feature', not string
+    properties: {},
+    geometry: {
+      type: "LineString", // same here
+      coordinates: claimedShapes,
+    },
   };
 
   async function fetchState() {
@@ -97,7 +111,6 @@ export default function HomeScreen() {
       setMapState(json);
 
       // Render lines and shapes - could be a separate function
-      //setPoints()
       // for each lines, extract from .points [lng, lat]
       const linesAndLoops = extractLinesAndLoops(json);
       console.log(JSON.stringify("--- lines and loops ---"));
@@ -107,9 +120,13 @@ export default function HomeScreen() {
       for (const line of linesAndLoops.lines) {
         allLines.push(...line);
       }
-      // TODO: Iterate and add to points
-      //setPoints(linesAndLoops.lines[0]);
       setPoints(allLines);
+
+      const allShapes: [number, number][] = [];
+      for (const loop of linesAndLoops.loops) {
+        allShapes.push(...loop);
+      }
+      setClaimedShapes(allShapes);
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -172,7 +189,7 @@ export default function HomeScreen() {
       />
       <UserLocation />
       {points.length >= 2 && (
-        <ShapeSource id="route" shape={routeGeoJSON}>
+        <ShapeSource id="route" shape={linesGeoJSON}>
           <LineLayer
             id="routeLine"
             style={{
@@ -183,11 +200,15 @@ export default function HomeScreen() {
               lineJoin: "round",
             }}
           />
+        </ShapeSource>
+      )}
+      {claimedShapes.length >= 1 && (
+        <ShapeSource id="route" shape={shapesGeoJSON}>
           <FillLayer
             id="routeShape"
             style={{
               fillColor: "#DA3E15",
-              fillOpacity: 0.0,
+              fillOpacity: 0.4,
             }}
           />
         </ShapeSource>
