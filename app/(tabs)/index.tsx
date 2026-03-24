@@ -11,6 +11,25 @@ import type GeoJSON from "geojson";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text } from "react-native";
 
+type Point = { lat: number; lng: number };
+
+type Player = {
+  id: string;
+  team: string;
+  lines: { points: Point[] }[] | null;
+  claimed: { loops: Point[][] }[] | null;
+};
+
+type GameState = {
+  colors: string[];
+  players: Player[];
+};
+
+type ExtractedData = {
+  lines: [number, number][][]; // array of lines, each line is array of [lng, lat]
+  loops: [number, number][][]; // array of loops, each loop is array of [lng, lat]
+};
+
 export default function HomeScreen() {
   //const SERVER_URL = "http://10.100.1.50:8080"; // RC
   const SERVER_URL = "http://192.168.1.28:8080"; // RC
@@ -24,6 +43,8 @@ export default function HomeScreen() {
   const [coords, setCoords] = useState<[number?, number?]>([]);
 
   const [points, setPoints] = useState<[number, number][]>([]);
+
+  const [allPoints, setAllPoints] = useState<[number, number][]>([]);
 
   const [mapState, setMapState] = useState({});
 
@@ -42,12 +63,54 @@ export default function HomeScreen() {
     },
   };
 
+  const toCoord = (p: Point): [number, number] => [p.lng, p.lat];
+
+  const extractLinesAndLoops = (data: GameState): ExtractedData => {
+    const lines: [number, number][][] = [];
+    const loops: [number, number][][] = [];
+
+    for (const player of data.players) {
+      // Extract lines
+      if (player.lines) {
+        for (const line of player.lines) {
+          lines.push(line.points.map(toCoord));
+        }
+      }
+
+      // Extract loops
+      if (player.claimed) {
+        for (const claim of player.claimed) {
+          for (const loop of claim.loops) {
+            loops.push(loop.map(toCoord));
+          }
+        }
+      }
+    }
+
+    return { lines: lines, loops: loops };
+  };
+
   async function fetchState() {
     try {
       const response = await fetch(SERVER_URL + "/state");
       const json = await response.json();
       console.log(JSON.stringify(json));
       setMapState(json);
+
+      // Render lines and shapes - could be a separate function
+      //setPoints()
+      // for each lines, extract from .points [lng, lat]
+      const linesAndLoops = extractLinesAndLoops(json);
+      console.log(JSON.stringify("--- lines and loops ---"));
+      console.log(JSON.stringify(linesAndLoops));
+
+      const allLines: [number, number][] = [];
+      for (const line of linesAndLoops.lines) {
+        allLines.push(...line);
+      }
+      // TODO: Iterate and add to points
+      //setPoints(linesAndLoops.lines[0]);
+      setPoints(allLines);
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -81,7 +144,7 @@ export default function HomeScreen() {
     console.log("-- update location " + new Date().toLocaleTimeString() + "--");
     if (location) {
       setCoords([location.coords.longitude, location.coords.latitude]);
-      addPoint(location.coords.longitude, location.coords.latitude);
+      // addPoint(location.coords.longitude, location.coords.latitude);
 
       // Send to server - longitude and latitude
       // TODO: Waiting for JSON response from pingLocation
@@ -130,15 +193,6 @@ export default function HomeScreen() {
           />
         </ShapeSource>
       )}
-      <Text
-        style={{
-          position: "absolute",
-          top: 50,
-          left: 50,
-        }}
-      >
-        {coords[0]}, {coords[1]}
-      </Text>
     </MapView>
   );
 }
