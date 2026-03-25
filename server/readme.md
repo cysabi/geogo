@@ -1,120 +1,170 @@
-# Territory Game — API Reference
+# Cityblock API Specification
 
-Base URL: `http://<host>:8080`
+Base URL: `http://localhost:9090`
+
+All coordinates are `[lng, lat]` (GeoJSON order).
 
 ---
 
-## GET `/state`
+## GET /state
 
-Returns the full game state as JSON. No parameters required.
+Poll this endpoint to get the current game state for a lobby.
+
+### Query Parameters
+
+| Param   | Type   | Required | Description       |
+|---------|--------|----------|-------------------|
+| `lobby` | string | yes      | The lobby code    |
 
 ### Response
 
+Returns `null` if the lobby doesn't exist — this signals the frontend to prompt the user for a lobby code.
+
+Otherwise returns the full game state:
+
 ```json
 {
-  "colors": ["red", "blue", "green", "yellow"],
+  "colors": ["#ff0000", "#00ff00"],
   "players": [
     {
-      "id": "p1",
+      "id": "player-uuid",
+      "name": "Alice",
       "team": "red",
-      "city": "New York",
-      "lines": [
-        {
-          "points": [
-            { "lat": 40.7128, "lng": -74.006, "timestamp": "2026-03-23T14:00:00Z" },
-            { "lat": 40.7130, "lng": -74.005, "timestamp": "2026-03-23T14:00:05Z" }
-          ]
-        }
+      "city": "nyc",
+      "lastPoint": [lng, lat],
+      "trail": [
+        [
+          [[lng, lat], [lng, lat], ...],
+          [[lng, lat], [lng, lat], ...]
+        ]
       ],
       "claimed": [
-        {
-          "vertices": [
-            { "lat": 40.7128, "lng": -74.006 },
-            { "lat": 40.7132, "lng": -74.005 },
-            { "lat": 40.7130, "lng": -74.007 }
-          ]
-        }
+        [
+          [[lng, lat], [lng, lat], ...],
+          [[lng, lat], [lng, lat], ...]
+        ]
       ]
     }
   ]
 }
 ```
 
-### Field Reference
+#### Player fields
 
-| Field | Type | Description |
-|---|---|---|
-| `colors` | `string[]` | Available team colors. |
-| `players` | `Player[]` | Every player currently in the game. |
-| `players[].id` | `string` | Unique player identifier. |
-| `players[].team` | `string` | The team/color this player belongs to. |
-| `players[].city` | `string` | The city the player is playing in. |
-| `players[].lines` | `PlayerLine[]` | Active polylines the player is drawing. |
-| `players[].lines[].points` | `TimedPoint[]` | Ordered vertices of the polyline. |
-| `players[].claimed` | `ClaimedArea[]` | Closed polygons the player has captured. |
-| `players[].claimed[].vertices` | `LatLng[]` | Ordered vertices of the polygon boundary. |
+| Field       | Type                   | Description                                                        |
+|-------------|------------------------|--------------------------------------------------------------------|
+| `id`        | string                 | Unique player identifier                                           |
+| `name`      | string                 | Display name                                                       |
+| `team`      | string                 | Team identifier                                                    |
+| `city`      | string                 | City the player is in (`"nyc"`, `"london"`, `"shanghai"`)          |
+| `lastPoint` | `[lng, lat]` or `null` | The most recent coordinate (tip of the active trail)               |
+| `trail`     | polygon array or `null`| Buffered road segments the player has walked. Same format as `claimed` — array of polygons, each polygon is an array of rings. |
+| `claimed`   | polygon array or `null`| Enclosed territory. Array of polygons, each polygon is an array of rings (first ring = exterior, rest = holes). Each ring is an array of `[lng, lat]` coords. |
+
+### Frontend flow
+
+1. On launch, call `GET /state?lobby=<code>`.
+2. If `null`, show a join/create lobby screen.
+3. If a game is returned, check if your player ID exists in `players`. If not, call `/join`.
+4. Poll `/state` on an interval to render updated trail and claimed areas.
 
 ---
 
-## GET `/ping`
+## POST /join
 
-Send the player's current position. The server applies it to the game state and returns the updated state.
+Join or create a lobby. Also used to update player info.
 
-### Query Parameters
+### Request Body (JSON)
 
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `id` | `string` | **Yes** | The player's unique ID. |
-| `lat` | `float` | **Yes** | Latitude in decimal degrees (WGS 84). |
-| `lng` | `float` | **Yes** | Longitude in decimal degrees (WGS 84). |
-| `ts` | `int` | No | Unix timestamp in **milliseconds** when the position was recorded on the client. Defaults to server time if omitted. |
-
-### Example Request
-
-```
-GET /ping?id=p1&lat=40.71280&lng=-74.00600&ts=1774556400000
-```
+| Field    | Type   | Required | Description                                            |
+|----------|--------|----------|--------------------------------------------------------|
+| `lobby`  | string | no       | Lobby code. If `""` or omitted, a new lobby is created |
+| `player` | string | yes      | Unique player ID (e.g. a UUID)                         |
+| `name`   | string | no       | Display name                                           |
+| `team`   | string | no       | Team identifier                                        |
+| `city`   | string | no       | City (`"nyc"`, `"london"`, `"shanghai"`)               |
 
 ### Response
 
-On success, the response body is the full game state (identical schema to `GET /state`), reflecting the world **after** the ping has been processed.
+```json
+{
+  "lobby": "a1b2c3d4",
+  "game": { ... }
+}
+```
 
-### Error Responses
+- `lobby` — the lobby code (important when creating a new lobby, since the server generates the code)
+- `game` — full game state (same shape as `/state` response)
 
-| Status | Body | Cause |
-|---|---|---|
-| `400` | `missing id` | The `id` query parameter was not provided. |
-| `400` | `bad lat` | The `lat` parameter is missing or not a valid float. |
-| `400` | `bad lng` | The `lng` parameter is missing or not a valid float. |
-| `500` | `unknown player <id>` | No player with that ID exists in the game state. |
+### Errors
+
+| Status | Condition                    |
+|--------|------------------------------|
+| 400    | Missing `player`             |
+| 404    | Lobby code provided but not found |
+
+### Frontend flow
+
+1. **Create a lobby**: `POST /join` with `lobby: ""`. Save the returned `lobby` code and share it with other players.
+2. **Join an existing lobby**: `POST /join` with the lobby code and your player info.
+3. **Update your info**: Call `/join` again with the same `lobby` and `player` — name, team, and city are upserted.
 
 ---
 
-## Example: cURL
+## POST /ping
 
-```bash
-# Fetch current state
-curl "http://localhost:8080/state"
+Send location updates from the client. The server snaps points to roads (via OSRM), buffers them into a trail polygon, detects enclosed areas, and handles territory claiming.
 
-# Send a position ping
-curl "http://localhost:8080/ping?id=p1&lat=40.71280&lng=-74.00600&ts=1774556400000"
+### Request Body (JSON)
+
+| Field    | Type             | Required | Description                                                  |
+|----------|------------------|----------|--------------------------------------------------------------|
+| `lobby`  | string           | yes      | Lobby code                                                   |
+| `player` | string           | yes      | Player ID                                                    |
+| `points` | `[lng, lat][]`   | yes      | Array of coordinates in ascending time order (oldest first)  |
+
+### Response
+
+Returns `null` on success.
+
+### Errors
+
+| Status | Condition                    |
+|--------|------------------------------|
+| 400    | Missing fields or empty points |
+| 404    | Lobby or player not found    |
+| 500    | Road-snapping or geometry error |
+
+### Frontend flow
+
+1. Collect GPS coordinates from the device at a regular interval.
+2. Batch them and send to `/ping` periodically (e.g. every few seconds).
+3. Points should be `[lng, lat]` — longitude first, latitude second (GeoJSON order).
+4. The server handles everything else: snapping to roads, building the trail, detecting enclosed areas, and claiming territory.
+
+### Server behavior details
+
+- If the player's `lastPoint` is within **1000m** of the first point in the batch, the segment continues from the last position.
+- Otherwise, a **new segment** is started (requires 2+ points).
+- All points are snapped to the nearest road via OSRM, then buffered into a polygon strip and unioned into the player's trail.
+- When the trail forms a closed loop (creating a hole in the trail polygon), the enclosed area is automatically claimed as territory.
+- Claimed territory subtracts from opponents' claimed areas and trail.
+
+---
+
+## Typical Client Lifecycle
+
 ```
+1.  GET  /state?lobby=<saved_code>
+    -> null? Show lobby screen
+    -> game? Check if player exists
 
-## Example: JavaScript (fetch)
+2.  POST /join  { lobby: "", player: "uuid", name: "Alice", team: "red", city: "nyc" }
+    -> save returned lobby code
+    -> share code with friends
 
-```js
-const BASE = "http://localhost:8080";
-
-async function getState() {
-  const res = await fetch(`${BASE}/state`);
-  return res.json();
-}
-
-async function ping(playerId, lat, lng) {
-  const ts = Date.now();
-  const res = await fetch(
-    `${BASE}/ping?id=${playerId}&lat=${lat}&lng=${lng}&ts=${ts}`
-  );
-  return res.json();
-}
+3.  Loop:
+      POST /ping  { lobby, player, points: [[lng,lat], ...] }
+      GET  /state?lobby=<code>
+      -> render all players' trail and claimed areas on the map
 ```
