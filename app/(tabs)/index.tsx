@@ -18,9 +18,9 @@ type Player = {
   name: string;
   team: string;
   city: string;
-  lastPoint: Point[];
-  trail: Point[][] | null;
-  claimed: Point[][] | null;
+  lastPoint: [number, number] | null;
+  trail: [number, number][][][] | null; // array of groups, each group has lines
+  claimed: [number, number][][][] | null; // same shape
 };
 
 type GameState = {
@@ -40,22 +40,28 @@ const extractLinesAndLoops = (data: GameState): ExtractedData => {
   const loops: [number, number][][] = [];
 
   for (const player of data.players) {
-    // Extract lines
     if (player.trail) {
-      for (const trail of player.trail) {
-        lines.push(trail.map(toCoord));
+      for (const group of player.trail) {
+        // group = [line, line, ...]
+        for (const line of group) {
+          // line = [[lng, lat], ...]
+          lines.push(line);
+        }
       }
     }
 
-    // Extract loops
     if (player.claimed) {
-      for (const claim of player.claimed) {
-        loops.push(claim.map(toCoord));
+      for (const group of player.claimed) {
+        // group = [loop, loop, ...]
+        for (const loop of group) {
+          // loop = [[lng, lat], ...]
+          loops.push(loop);
+        }
       }
     }
   }
 
-  return { lines: lines, loops: loops };
+  return { lines, loops };
 };
 
 export default function HomeScreen() {
@@ -117,12 +123,14 @@ export default function HomeScreen() {
     try {
       const response = await fetch(SERVER_URL + "/state?lobby=" + LOBBY_ID);
       const json = await response.json();
+      console.log("game state");
+      console.log(JSON.stringify(json));
 
       // Render lines and shapes - could be a separate function
       // for each lines, extract from .points [lng, lat]
       const linesAndLoops = extractLinesAndLoops(json);
-      //console.log(JSON.stringify("--- lines and loops ---"));
-      //console.log(JSON.stringify(linesAndLoops));
+      console.log(JSON.stringify("--- lines and loops ---"));
+      console.log(JSON.stringify(linesAndLoops));
 
       const allLines: [number, number][] = [];
       for (const line of linesAndLoops.lines) {
@@ -135,6 +143,11 @@ export default function HomeScreen() {
         allShapes.push(loop);
       }
       setClaimedShapes(allShapes);
+
+      console.log("lines:");
+      console.log(JSON.stringify(allLines));
+      console.log("shapes:");
+      console.log(JSON.stringify(allShapes));
     } catch (error) {
       console.error("Error fetching data - fetchState:", error);
     }
