@@ -122,14 +122,14 @@ export default function HomeScreen() {
     try {
       const response = await fetch(SERVER_URL + "/state?lobby=" + LOBBY_ID);
       const json = await response.json();
-      console.log("game state");
-      console.log(JSON.stringify(json));
+      //console.log("game state");
+      //console.log(JSON.stringify(json));
 
       // Render lines and shapes - could be a separate function
       // for each lines, extract from .points [lng, lat]
       const linesAndLoops = extractLinesAndLoops(json);
-      console.log(JSON.stringify("--- lines and loops ---"));
-      console.log(JSON.stringify(linesAndLoops));
+      //console.log(JSON.stringify("--- lines and loops ---"));
+      //console.log(JSON.stringify(linesAndLoops));
 
       const allLines: [number, number][] = [];
       for (const line of linesAndLoops.lines) {
@@ -143,10 +143,10 @@ export default function HomeScreen() {
       }
       setClaimedShapes(allShapes);
 
-      console.log("lines:");
+      /*console.log("lines:");
       console.log(JSON.stringify(allLines));
       console.log("shapes:");
-      console.log(JSON.stringify(allShapes));
+      console.log(JSON.stringify(allShapes));*/
     } catch (error) {
       console.error("Error fetching data - fetchState:", error);
     }
@@ -175,6 +175,7 @@ export default function HomeScreen() {
   useEffect(() => {
     console.log("-- update location " + new Date().toLocaleTimeString() + "--");
     if (location) {
+      console.log(location.coords.latitude, ", ", location.coords.longitude);
       setCoords([location.coords.longitude, location.coords.latitude]);
 
       // Uncomment this to render a point locally/on the client, without the server
