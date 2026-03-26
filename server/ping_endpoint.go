@@ -9,7 +9,7 @@ import (
 	"github.com/twpayne/go-geos"
 )
 
-const TRAIL_WIDTH = 8
+const TRAIL_WIDTH = 4
 
 type PingRequest struct {
 	Lobby  string       `json:"lobby"`
@@ -68,6 +68,8 @@ func updatePlayerState(game *Game, p *Player, points [][2]float64) error {
 	first := points[0]
 	continuing := pointsWithinMeters(p.LatestPoint, &first, 1000, p.City)
 
+	fmt.Printf("A: %#v\n", points)
+
 	// build the segment to snap
 	var raw [][2]float64
 	if continuing {
@@ -81,15 +83,20 @@ func updatePlayerState(game *Game, p *Player, points [][2]float64) error {
 		return nil
 	}
 
-	segment, err := snapToRoads(raw)
-	if err != nil {
-		return err
-	}
-	if len(segment) < 2 {
-		last := points[len(points)-1]
-		p.LatestPoint = &last
-		return nil
-	}
+	fmt.Printf("B: %#v\n", raw)
+
+	segment := raw
+	// segment, err := snapToRoads(raw)
+	// if err != nil {
+	// 	return err
+	// }
+	// if len(segment) < 2 {
+	// 	last := points[len(points)-1]
+	// 	p.LatestPoint = &last
+	// 	return nil
+	// }
+
+	fmt.Printf("C: %#v\n", segment)
 
 	// buffer the segment and union into trail
 	line := geos.NewLineString(toGeosCoords(segment))
@@ -101,6 +108,8 @@ func updatePlayerState(game *Game, p *Player, points [][2]float64) error {
 	} else {
 		p.Trail = p.Trail.Union(strip)
 	}
+
+	fmt.Printf("D: %#v\n", strip)
 
 	// update LatestPoint from snapped segment
 	last := segment[len(segment)-1]
@@ -185,7 +194,12 @@ func snapToRoads(points [][2]float64) ([][2]float64, error) {
 		}
 		coords += fmt.Sprintf("%f,%f", p[0], p[1])
 	}
-	resp, err := http.Get("https://router.project-osrm.org/match/v1/foot/" + coords + "?geometries=geojson&overview=full")
+
+	uri := "https://router.project-osrm.org/match/v1/foot/" + coords + "?geometries=geojson"
+
+	fmt.Printf("uri: %#v\n", uri)
+
+	resp, err := http.Get(uri)
 	if err != nil {
 		return nil, err
 	}
