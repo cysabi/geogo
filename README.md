@@ -1,8 +1,8 @@
-<img width="564" height="210" alt="logo1Blue" src="https://github.com/user-attachments/assets/2bd72d19-5560-45ee-8412-337f0d8422c8" />
+# GeoGo
 
 by cyrene zhang, Claire Kwong, and Gus Boehling
 
-<img width="540" height="960" alt="mockup2a" src="https://github.com/user-attachments/assets/2db633eb-dd5f-410a-8140-7f326178c263" />
+<img width="540" height="960" alt="mockup2c" src="https://github.com/user-attachments/assets/d21cff85-6e07-4b30-bb85-2aa3cfaaa548" />
 
 GeoGo is a mobile alternate reality game (ARG) where players capture turf by traveling across city block streets. You draw a line by walking across city block streets. You capture areas by drawing a closed shape. But! If someone on a different team captures an area that intersects your captured area, your area will be broken! 
 
