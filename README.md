@@ -29,6 +29,6 @@ For iOS, register your device: https://github.com/expo/fyi/blob/main/setup-xcode
    npx expo run:ios --device
    ```
    
-   Press `s` to switch to development mode.
+Press `s` to switch to development mode.
 
 You can also run in an emulator and simulate location.
