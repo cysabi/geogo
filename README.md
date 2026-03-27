@@ -16,18 +16,18 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
 2. Install dependencies
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
 3. To run on iOS or Android:
 
 For iOS, register your device: https://github.com/expo/fyi/blob/main/setup-xcode-signing.md
 
-   ```bash
-   npx expo run:android --device
-   npx expo run:ios --device
-   ```
+```bash
+npx expo run:android --device
+npx expo run:ios --device
+```
    
 Press `s` to switch to development mode.
 
