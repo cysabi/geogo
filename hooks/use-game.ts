@@ -2,7 +2,7 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { useCallback, useEffect, useState } from "react";
 
-const SERVER_URL = "https://geogo.rcdis.co";
+const SERVER_URL = "http://10.100.19.188:9090";
 const MIN_LOCATION_UPDATE = 80;
 const REFETCH_INTERVAL = 10;
 
@@ -37,31 +37,31 @@ export function useGame(lobbyId: string, playerTag: string) {
     try {
       const res = await fetch(SERVER_URL + "/state?lobby=" + lobbyId);
       if (!res.ok) {
-        setError(`Failed to fetch state: ${res.status}`);
+        setError(`State fetch did not ok: ${res.status}`);
         return;
       }
       setState(await res.json());
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Network error");
+      setError(e instanceof Error ? `Failed to fetch state: ${e.message}` : "Failed to fetch state");
     }
   }, [lobbyId]);
 
   const onLocations = useCallback(async (locations: Location.LocationObject[]) => {
     try {
-      const res = await fetch(SERVER_URL + "/ping", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lobby: lobbyId,
-          player: playerTag,
-          points: locations.map((l) => [l.coords.longitude, l.coords.latitude]),
-        }),
-      });
-      if (!res.ok) setError(`Failed to send ping: ${res.status}`);
-      else refetch();
+      // const res = await fetch(SERVER_URL + "/ping", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({
+      //     lobby: lobbyId,
+      //     player: playerTag,
+      //     points: locations.map((l) => [l.coords.longitude, l.coords.latitude]),
+      //   }),
+      // });
+      // if (!res.ok) setError(`Send ping did not ok: ${res.status}`);
+      // else refetch();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Network error");
+      setError(e instanceof Error ? `Failed to send ping: ${e.message}` : "Failed to send ping");
     }
   }, [lobbyId, playerTag, refetch]);
 
@@ -78,7 +78,7 @@ export function useGame(lobbyId: string, playerTag: string) {
     if (!active) return;
 
     _onLocations = onLocations;
-    startLocationTask().catch((e) => setError(e.message));
+    startLocationTask().catch((e) => setError(`Location task failed: ${e.message}`));
 
     return () => {
       _onLocations = null;

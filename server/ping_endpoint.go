@@ -86,15 +86,15 @@ func updatePlayerState(game *Game, p *Player, points [][2]float64) error {
 	fmt.Printf("B: %#v\n", raw)
 
 	segment := raw
-	// segment, err := snapToRoads(raw)
-	// if err != nil {
-	// 	return err
-	// }
-	// if len(segment) < 2 {
-	// 	last := points[len(points)-1]
-	// 	p.LatestPoint = &last
-	// 	return nil
-	// }
+	segment, err := snapToRoads(raw)
+	if err != nil {
+		return err
+	}
+	if len(segment) < 2 {
+		last := points[len(points)-1]
+		p.LatestPoint = &last
+		return nil
+	}
 
 	fmt.Printf("C: %#v\n", segment)
 
@@ -195,7 +195,7 @@ func snapToRoads(points [][2]float64) ([][2]float64, error) {
 		coords += fmt.Sprintf("%f,%f", p[0], p[1])
 	}
 
-	uri := "https://router.project-osrm.org/match/v1/foot/" + coords + "?geometries=geojson"
+	uri := "https://router.project-osrm.org/match/v1/foot/" + coords + "?geometries=geojson&tidy=true"
 
 	fmt.Printf("uri: %#v\n", uri)
 

@@ -1,6 +1,12 @@
 import { Link } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 
+// lobby creation popup
+// if lobby code | player tag empty
+// - ask type lobby code & player tag
+// if state is still null, ask to generate new lobby
+// if state isnt null but player tag doesn't exist, ask to make new player
+
 export default function ModalScreen() {
   return (
     <View style={styles.container}>

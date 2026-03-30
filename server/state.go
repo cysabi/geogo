@@ -37,6 +37,7 @@ func multiPolygonCoords(geom *geos.Geom) [][][][2]float64 {
 	if geom == nil {
 		return nil
 	}
+	geom = geom.Normalize().Reverse()
 	var result [][][][2]float64
 	for i := range geom.NumGeometries() {
 		poly := geom.Geometry(i)
