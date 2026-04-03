@@ -1,8 +1,9 @@
+import { SERVER } from "@/components/state";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { useEffect, useState } from "react";
 
-const URL = `http://${"10.100.19.188:9090"}`
+const URL = `http://${SERVER}`
 const MIN_LOCATION_UPDATE = 80;
 
 let _onLocations: ((locations: Location.LocationObject[]) => void) | null = null;
@@ -47,7 +48,12 @@ export function useLocation(lobbyId: string, playerTag: string, active: boolean)
         //   body: JSON.stringify({
         //     lobby: lobbyId,
         //     player: playerTag,
-        //     points: locations.map((l) => [l.coords.longitude, l.coords.latitude]),
+        //     points: locations.map((l) => ({
+        //       lat: l.coords.latitude,
+        //       lng: l.coords.longitude,
+        //       rad: l.coords.accuracy,
+        //       ts: l.timestamp
+        //     })),
         //   }),
         // });
         // if (!res.ok) setError(`Send ping did not ok: ${res.status}`);

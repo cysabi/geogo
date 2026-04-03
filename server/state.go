@@ -16,64 +16,25 @@ type Player struct {
 	Team        string      `json:"team"`
 	City        string      `json:"city"`
 	LatestPoint *[2]float64 `json:"lastPoint"`
+	LatestTs    *float64    `json:"lastTs"`
 	Trail       *geos.Geom  `json:"-"` // MultiLineString — raw road segments
 	Claimed     *geos.Geom  `json:"-"` // MultiPolygon — enclosed territory
 }
 
+func (p *Player) New() *Player {
+	p.Trail = geos.NewCollection(geos.TypeIDMultiLineString, []*geos.Geom{})
+	p.Claimed = geos.NewCollection(geos.TypeIDMultiPolygon, []*geos.Geom{})
+	return p
+}
+
 func (p *Player) MarshalJSON() ([]byte, error) {
-	type Alias Player
+	type P Player
 	return json.Marshal(&struct {
-		*Alias
-		Trail   [][][2]float64   `json:"trail"`
-		Claimed [][][][2]float64 `json:"claimed"`
+		*P
+		Trail   json.RawMessage `json:"trail"`
+		Claimed json.RawMessage `json:"claimed"`
 	}{
-		Alias:   (*Alias)(p),
-		Trail:   multiLineStringCoords(p.Trail),
-		Claimed: multiPolygonCoords(p.Claimed),
-	})
-}
-
-func multiLineStringCoords(geom *geos.Geom) [][][2]float64 {
-	if geom == nil {
-		return nil
-	}
-	var result [][][2]float64
-	for i := range geom.NumGeometries() {
-		line := geom.Geometry(i)
-		result = append(result, fromGeosCoords(line.CoordSeq().ToCoords()))
-	}
-	return result
-}
-
-func multiPolygonCoords(geom *geos.Geom) [][][][2]float64 {
-	if geom == nil {
-		return nil
-	}
-	geom = geom.Normalize().Reverse()
-	var result [][][][2]float64
-	for i := range geom.NumGeometries() {
-		poly := geom.Geometry(i)
-		rings := [][][2]float64{fromGeosCoords(poly.ExteriorRing().CoordSeq().ToCoords())}
-		for j := range poly.NumInteriorRings() {
-			rings = append(rings, fromGeosCoords(poly.InteriorRing(j).CoordSeq().ToCoords()))
-		}
-		result = append(result, rings)
-	}
-	return result
-}
-
-func toGeosCoords(pts [][2]float64) [][]float64 {
-	out := make([][]float64, len(pts))
-	for i, p := range pts {
-		out[i] = []float64{p[0], p[1]}
-	}
-	return out
-}
-
-func fromGeosCoords(coords [][]float64) [][2]float64 {
-	out := make([][2]float64, len(coords))
-	for i, c := range coords {
-		out[i] = [2]float64{c[0], c[1]}
-	}
-	return out
+		P:       (*P)(p),
+		Trail:   json.RawMessage(p.Trail.ToGeoJSON(-1)),
+		Claimed: json.RawMessage(p.Claimed.Normalize().Reverse().ToGeoJSON(-1))})
 }

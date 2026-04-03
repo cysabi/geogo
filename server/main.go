@@ -18,11 +18,11 @@ func main() {
 
 	lobbies["test12"] = &Game{}
 	lobby := lobbies["test12"]
-	lobby.Players = append(lobby.Players, &Player{
+	lobby.Players = append(lobby.Players, (&Player{
 		Tag:  "claire",
 		Team: "red",
 		City: "nyc",
-	})
+	}).New())
 	lobby.Colors = [2]string{"#ff0000", "#0000ff"}
 
 	r := chi.NewRouter()

@@ -4,14 +4,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/twpayne/go-geos"
 )
 
 type PingRequest struct {
-	Lobby  string       `json:"lobby"`
-	Player string       `json:"player"`
-	Points [][2]float64 `json:"points"` // [lng, lat] pairs, ascending order (oldest first)
+	Lobby  string      `json:"lobby"`
+	Player string      `json:"player"`
+	Points []PingPoint `json:"points"`
+}
+
+type PingPoint struct {
+	Latitude  float64 `json:"lat"`
+	Longitude float64 `json:"lng"`
+	Radius    float64 `json:"rad"`
+	Timestamp float64 `json:"ts"`
 }
 
 // PingEndpoint receives location pings from a client and updates game state.
@@ -34,11 +42,11 @@ func PingEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lobbiesMu.Lock()
+	defer lobbiesMu.Unlock()
 
 	// get game & player
 	game := lobbies[req.Lobby]
 	if game == nil {
-		lobbiesMu.Unlock()
 		http.Error(w, "lobby not found", http.StatusNotFound)
 		return
 	}
@@ -50,7 +58,6 @@ func PingEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if player == nil {
-		lobbiesMu.Unlock()
 		http.Error(w, "player not found", http.StatusNotFound)
 		return
 	}
@@ -58,89 +65,73 @@ func PingEndpoint(w http.ResponseWriter, r *http.Request) {
 	// update player state
 	affected, err := updatePlayerState(game, player, req.Points)
 	if err != nil {
-		lobbiesMu.Unlock()
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// emit to ws
 	messages := PreparePlayerUpdates(req.Lobby, affected)
-	lobbiesMu.Unlock()
 
 	go BroadcastPrepared(req.Lobby, messages)
 
 	json.NewEncoder(w).Encode(nil)
 }
 
-func updatePlayerState(game *Game, p *Player, points [][2]float64) ([]string, error) {
-	// prepend LatestPoint so OSRM can connect to previous position
-	if p.LatestPoint != nil {
-		points = append([][2]float64{*p.LatestPoint}, points...)
-	} else {
-		p.LatestPoint = &points[len(points)-1]
-		return []string{p.Tag}, nil
-	}
-
-	// // snap to roads
-	// segments, err := snapToRoads(points)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// // add each matching as a line to the trail
-	// for _, seg := range segments {
-	// 	if len(seg) < 2 {
-	// 		continue
-	// 	}
-	// 	line := geos.NewLineString(toGeosCoords(seg))
-	// 	if p.Trail == nil {
-	// 		p.Trail = geos.NewCollection(geos.TypeIDMultiLineString, []*geos.Geom{line})
-	// 	} else {
-	// 		p.Trail = p.Trail.Union(line).UnaryUnion()
-	// 	}
-	// }
-
-	// straight direct lines
-	if len(points) >= 2 {
-		line := geos.NewLineString(toGeosCoords(points))
-		if p.Trail == nil {
-			p.Trail = geos.NewCollection(geos.TypeIDMultiLineString, []*geos.Geom{line})
-		} else {
-			p.Trail = p.Trail.Union(line).UnaryUnion()
+func updatePlayerState(game *Game, p *Player, points []PingPoint) ([]string, error) {
+	// first call - setup latest point
+	if p.LatestPoint == nil {
+		if len(points) == 1 {
+			p.LatestPoint = &[2]float64{points[0].Longitude, points[0].Latitude}
+			p.LatestTs = &points[0].Timestamp
+			return []string{p.Tag}, nil
 		}
 	}
 
-	// update LatestPoint from last matching
-	last := points[len(points)-1]
-	p.LatestPoint = &last
+	// prepend latest point
+	points = append([]PingPoint{PingPoint{
+		Longitude: p.LatestPoint[0],
+		Latitude:  p.LatestPoint[1],
+		Timestamp: *p.LatestTs,
+	}}, points...)
+
+	// snap to roads
+	segments, err := snapToRoads(points)
+	if err != nil {
+		return nil, err
+	}
+
+	// build multilinestring and union into the trail
+	lines := make([]*geos.Geom, len(segments))
+	for i, seg := range segments {
+		lines[i] = geos.NewLineString(seg)
+	}
+	lastSeg := segments[len(segments)-1]
+	lastPoint := lastSeg[len(lastSeg)-1]
+	p.LatestPoint = &[2]float64{lastPoint[0], lastPoint[1]}
+	p.LatestTs = &points[len(points)-1].Timestamp
+	p.Trail = p.Trail.Union(geos.NewCollection(geos.TypeIDMultiLineString, lines)).UnaryUnion()
 
 	// detect holes in trail → claim enclosed areas
-	affected := []string{p.Tag}
-	affected = append(affected, claimHoles(game, p)...)
+	affected := claim(game, p)
+
+	affected = append([]string{p.Tag}, affected...)
 
 	return affected, nil
 }
 
-func claimHoles(game *Game, player *Player) []string {
-	if player.Trail == nil {
-		return nil
-	}
-
+func claim(game *Game, player *Player) []string {
 	// get claimed areas
-	claimed, cuts, dangles, _ := player.Trail.PolygonizeFull()
-	if claimed.IsEmpty() {
-		return nil
-	}
-
+	claimed, cuts, dangles, _ := player.Trail.Union(player.Claimed.Boundary()).PolygonizeFull()
 	// add to player's claimed territory
-	if player.Claimed == nil {
-		player.Claimed = claimed
-	} else {
-		player.Claimed = player.Claimed.Union(claimed)
+	player.Claimed = player.Claimed.Union(claimed)
+	if player.Claimed.TypeID() == geos.TypeIDPolygon {
+		player.Claimed = geos.NewCollection(geos.TypeIDMultiPolygon, []*geos.Geom{player.Claimed})
 	}
-
 	// trail becomes only the leftover lines (cuts + dangles)
-	player.Trail = geos.NewCollection(geos.TypeIDGeometryCollection, []*geos.Geom{cuts, dangles}).UnaryUnion()
+	player.Trail = cuts.Union(dangles).Difference(player.Claimed).UnaryUnion()
+	if player.Trail.TypeID() == geos.TypeIDLineString {
+		player.Trail = geos.NewCollection(geos.TypeIDMultiLineString, []*geos.Geom{player.Trail})
+	}
 
 	// subtract from opponents
 	var affected []string
@@ -148,49 +139,85 @@ func claimHoles(game *Game, player *Player) []string {
 		if opponent.Tag == player.Tag {
 			continue
 		}
-		if opponent.Trail != nil {
-			opponent.Trail = viralSubtract(opponent.Trail, claimed)
+
+		affect := false
+		opponent.Trail, affect = clearOpponentLines(opponent.Trail, claimed)
+		if opponent.Trail.TypeID() == geos.TypeIDLineString {
+			opponent.Trail = geos.NewCollection(geos.TypeIDMultiLineString, []*geos.Geom{opponent.Trail})
 		}
-		if opponent.Claimed != nil {
-			opponent.Claimed = opponent.Claimed.Difference(claimed)
+		opponent.Claimed = opponent.Claimed.Difference(claimed)
+		if opponent.Claimed.TypeID() == geos.TypeIDPolygon {
+			opponent.Claimed = geos.NewCollection(geos.TypeIDMultiPolygon, []*geos.Geom{opponent.Claimed})
 		}
-		affected = append(affected, opponent.Tag)
+
+		if affect {
+			affected = append(affected, opponent.Tag)
+		}
 	}
+
 	return affected
 }
 
-func viralSubtract(trail, claimed *geos.Geom) *geos.Geom {
-	trail = trail.Difference(claimed)
-	infected := claimed
-	for {
-		var keep []*geos.Geom
-		spread := false
-		for i := range trail.NumGeometries() {
-			line := trail.Geometry(i)
-			if line.Intersects(infected) {
-				infected = infected.Union(line)
-				spread = true
-			} else {
-				keep = append(keep, line)
+func clearOpponentLines(trail, claimed *geos.Geom) (*geos.Geom, bool) {
+	newTrail := trail.Difference(claimed)
+	n := newTrail.NumGeometries()
+
+	lines := make([]*geos.Geom, n)
+	for i := range n {
+		lines[i] = newTrail.Geometry(i)
+	}
+
+	visited := map[int]bool{}
+	var toVisit []int
+	for i, line := range lines {
+		if !line.Intersects(claimed) {
+			continue
+		}
+		visited[i] = true
+		toVisit = append(toVisit, i)
+	}
+
+	for i := 0; i < len(toVisit); i++ {
+		for j, line := range lines {
+			if !visited[j] && line.Intersects(lines[toVisit[i]]) {
+				visited[j] = true
+				toVisit = append(toVisit, j)
 			}
 		}
-		if !spread || len(keep) == 0 {
-			return trail
-		}
-		trail = geos.NewCollection(geos.TypeIDMultiLineString, keep)
 	}
+
+	infected := make([]*geos.Geom, len(toVisit))
+	for i, idx := range toVisit {
+		infected[i] = lines[idx]
+	}
+	newTrail = newTrail.Difference(geos.NewCollection(geos.TypeIDMultiLineString, infected)).UnaryUnion()
+	return newTrail, !newTrail.Equals(trail)
 }
 
-func snapToRoads(points [][2]float64) ([][][2]float64, error) {
-	coords := ""
+func snapToRoads(points []PingPoint) ([][][]float64, error) {
+	segs := make([][]float64, len(points))
 	for i, p := range points {
-		if i > 0 {
-			coords += ";"
-		}
-		coords += fmt.Sprintf("%f,%f", p[0], p[1])
+		segs[i] = []float64{p.Longitude, p.Latitude}
+	}
+	s := make([][][]float64, 1)
+	s[0] = segs
+	return s, nil
+
+	// TODO :: ^ TEMP
+
+	coords := make([]string, len(points))
+	radiuses := make([]string, len(points))
+	timestamps := make([]string, len(points))
+
+	for i, p := range points {
+		coords[i] = fmt.Sprintf("%f,%f", p.Longitude, p.Latitude)
+		radiuses[i] = fmt.Sprintf("%f", p.Radius)
+		timestamps[i] = fmt.Sprintf("%f", p.Timestamp)
 	}
 
-	uri := "https://router.project-osrm.org/match/v1/foot/" + coords + "?geometries=geojson&tidy=true"
+	uri := "https://router.project-osrm.org/match/v1/foot/" + strings.Join(coords, ";") + "?tidy=true&geometries=geojson"
+	uri = uri + "&radiuses=" + strings.Join(radiuses, ";")
+	uri = uri + "&timestamps=" + strings.Join(timestamps, ";")
 
 	fmt.Printf("uri: %#v\n", uri)
 
@@ -203,17 +230,15 @@ func snapToRoads(points [][2]float64) ([][][2]float64, error) {
 	var result struct {
 		Matchings []struct {
 			Geometry struct {
-				Coordinates [][2]float64 `json:"coordinates"`
+				Coordinates [][]float64 `json:"coordinates"`
 			} `json:"geometry"`
 		} `json:"matchings"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
-	if len(result.Matchings) == 0 {
-		return [][][2]float64{points}, nil
-	}
-	segments := make([][][2]float64, len(result.Matchings))
+
+	segments := make([][][]float64, len(result.Matchings))
 	for i, m := range result.Matchings {
 		segments[i] = m.Geometry.Coordinates
 	}

@@ -15,12 +15,6 @@ type JoinRequest struct {
 	City   string    `json:"city"`
 }
 
-func newLobbyCode() string {
-	b := make([]byte, 4)
-	rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
 func JoinEndpoint(w http.ResponseWriter, r *http.Request) {
 	var req JoinRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -40,11 +34,7 @@ func JoinEndpoint(w http.ResponseWriter, r *http.Request) {
 		req.Lobby = newLobbyCode()
 		lobbies[req.Lobby] = &Game{Colors: req.Colors}
 	}
-	game, ok := lobbies[req.Lobby]
-	if !ok {
-		http.Error(w, "lobby not found", http.StatusNotFound)
-		return
-	}
+	game, _ := lobbies[req.Lobby]
 
 	// find or create player
 	var player *Player
@@ -55,7 +45,7 @@ func JoinEndpoint(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if player == nil {
-		player = &Player{Tag: req.Player}
+		player = (&Player{Tag: req.Player}).New()
 		game.Players = append(game.Players, player)
 	}
 	player.Team = req.Team
@@ -63,4 +53,10 @@ func JoinEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"lobby": req.Lobby, "game": game})
+}
+
+func newLobbyCode() string {
+	b := make([]byte, 4)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }

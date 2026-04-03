@@ -1,20 +1,7 @@
+import { SERVER, type GameState, type Player } from "@/components/state";
 import { useEffect, useRef, useState } from "react";
 
-const URL = `ws://${"10.100.19.188:9090"}/ws`
-
-type Player = {
-  tag: string;
-  team: string;
-  city: string;
-  lastPoint: [number, number] | null;
-  trail: [number, number][][] | null;
-  claimed: [number, number][][][] | null;
-};
-
-export type GameState = {
-  colors: string[];
-  players: Player[];
-};
+const URL = `ws://${SERVER}/ws`
 
 export function useGame(lobbyId: string, playerTag: string) {
   const [state, setState] = useState<GameState | null>(null);
@@ -26,6 +13,7 @@ export function useGame(lobbyId: string, playerTag: string) {
     wsRef.current = ws;
     ws.onopen = () => ws.send(JSON.stringify({ type: "me", player: playerTag, lobby: lobbyId }));
     ws.onmessage = (e) => {
+      console.log(e.data)
       const msg = JSON.parse(e.data);
       switch (msg.type) {
         case "state":
